@@ -75,7 +75,7 @@ proc main() : void =
       if not pidbuffer.existsPIDBuffer(pid):
         continue
 
-      if not (pid == 0x0000 or isPMT(pid)):
+      if not (pid == 0x0000 or pidbuffer.isPMT(pid)):
         packetio.writePacket(outputFile, packet=packet)
         continue
 
@@ -87,9 +87,9 @@ proc main() : void =
         if not isFull:
           continue
 
-        let section : seq[byte] = loadSection(pid)
+        let section : seq[byte] = pidbuffer.loadSection(pid)
 
-        if pid == 0x0000 or isPMT(pid):
+        if pid == 0x0000 or pidbuffer.isPMT(pid):
           let
             reducedSection : seq[byte] = packetproc.reduceSection(pid, section)
             reducedPackets : seq[seq[byte]] = (

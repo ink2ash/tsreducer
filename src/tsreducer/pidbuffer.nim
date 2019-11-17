@@ -205,7 +205,8 @@ proc storePIDBuffer(pid : int, packet : seq[byte],
     payloadPos += pointerField
 
     # ES is NOT supported
-    if isES(pid): return false
+    if isES(pid):
+      return false
 
     # New section
     var
@@ -225,7 +226,7 @@ proc storePIDBuffer(pid : int, packet : seq[byte],
       ] = packet[payloadPos..<(payloadPos + payloadSize)]
       pidBufs[pid].pos += payloadSize
 
-      if not pidBufs[pid].size == pidBufs[pid].pos:
+      if pidBufs[pid].size != pidBufs[pid].pos:
         log(lvlWarn, "Exists drop: PID = ", pid.toHex[^4..^1])
         pidBufs[pid].pos = pidBufs[pid].size
         pidBufs[pid].existsDrop = true
@@ -250,12 +251,11 @@ proc storePIDBuffer(pid : int, packet : seq[byte],
 
     if pidBufs[pid].size - pidBufs[pid].pos <= PACKET_SIZE - 4:
       pidBufs[pid].section[
-        (pidBufs[pid].pos)..<
-        (pidBufs[pid].pos + (pidBufs[pid].size - pidBufs[pid].pos))
+        pidBufs[pid].pos..<pidBufs[pid].size
       ] = packet[4..<(4 + (pidBufs[pid].size - pidBufs[pid].pos))]
       pidBufs[pid].pos += pidBufs[pid].size - pidBufs[pid].pos
 
-      if not pidBufs[pid].size == pidBufs[pid].pos:
+      if pidBufs[pid].size != pidBufs[pid].pos:
         log(lvlWarn, "Exists drop: PID = ", pid.toHex[^4..^1])
         pidBufs[pid].pos = pidBufs[pid].size
         pidBufs[pid].existsDrop = true
@@ -263,7 +263,7 @@ proc storePIDBuffer(pid : int, packet : seq[byte],
       return not pidBufs[pid].existsDrop
     else:
       pidBufs[pid].section[
-        (pidBufs[pid].pos)..<(pidBufs[pid].pos + (PACKET_SIZE - 4))
+        pidBufs[pid].pos..<(pidBufs[pid].pos + (PACKET_SIZE - 4))
       ] = packet[4..<PACKET_SIZE]
       pidBufs[pid].pos += PACKET_SIZE - 4
 
