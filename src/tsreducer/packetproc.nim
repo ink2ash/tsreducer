@@ -30,7 +30,11 @@ proc reducePMT(section : seq[byte]) : seq[byte]
 proc reduceSection*(pid : int, section : seq[byte]) : seq[byte]
 proc makeTSPacket*(pid : int, section : seq[byte]) : seq[seq[byte]]
 proc parseEIT(section : seq[byte]) : void
+proc parseTDT(section : seq[byte]) : void
 proc parseSI*(pid : int, section : seq[byte]) : void
+proc modifyPCR(pid : int, packet : seq[byte]) : seq[byte]
+proc modifyES(pid : int, packet : seq[byte]) : seq[byte]
+proc modifyPacketTime*(pid : int, packet : seq[byte]) : seq[byte]
 
 
 # --------------- Util --------------------------------------------------------
@@ -289,8 +293,20 @@ proc parseEIT(section : seq[byte]) : void =
       pos += descLoopLength + 12
 
 
+proc parseTDT(section : seq[byte]) : void =
+  ## Parse TDT sections.
+  ##
+  ## **Parameters:**
+  ## - ``section`` : ``seq[byte]``
+  ##     TDT section data.
+  let
+    jstSeq : seq[byte] = section[3..7]
+    jst : int = timestamp.mjd2timestamp(jstSeq)
+  timestamp.registerRelJST(jst)
+
+
 proc parseSI(pid : int, section : seq[byte]) : void =
-  ## Parse SI sections (mainly EIT).
+  ## Parse SI sections (mainly EIT and TDT).
   ##
   ## **Parameters:**
   ## - ``pid`` : ``int``
@@ -299,3 +315,108 @@ proc parseSI(pid : int, section : seq[byte]) : void =
   ##     SI section data.
   if pid == 0x0012:
     parseEIT(section)
+  elif pid == 0x0014:
+    parseTDT(section)
+
+
+# --------------- Time --------------------------------------------------------
+proc modifyPCR(pid : int, packet : seq[byte]) : seq[byte] =
+  ## Modify PCR packets so that 27MHz PCR is based on 01:00:00.
+  ##
+  ## **Parameters:**
+  ## - ``pid`` : ``int``
+  ##     Packet identifier.
+  ## - ``packet`` : ``seq[byte]``
+  ##     Original PCR packet.
+  ##
+  ## **Returns:**
+  ## - ``result`` : ``seq[byte]``
+  ##     Modified PCR packet.
+  result = packet
+
+  let existsAdaptation : bool = ((packet[3] shr 5) and 0x01) == 1
+  if existsAdaptation:
+    let existsPCR : bool = ((packet[5] shr 4) and 0x01) == 1
+    if existsPCR:
+      let
+        pcrSeq : seq[byte] = packet[6..11]
+        timeId : int = timestamp.calcTimeId(pid, "PCR")
+      var pcr : int = timestamp.byte2pcr(pcrSeq)
+      timestamp.registerFirstTime(timeId, pcr)
+      pcr = timestamp.modifyTime(timeId, pcr)
+      timestamp.registerRelPCR(pcr)
+      result[6..11] = timestamp.pcr2byte(pcr, pcrSeq)
+
+
+proc modifyES(pid : int, packet : seq[byte]) : seq[byte] =
+  ## Modify ES packets so that 90kHz PTS/DTS is based on 01:00:00.
+  ##
+  ## **Parameters:**
+  ## - ``pid`` : ``int``
+  ##     Packet identifier.
+  ## - ``packet`` : ``seq[byte]``
+  ##     Original ES packet.
+  ##
+  ## **Returns:**
+  ## - ``result`` : ``seq[byte]``
+  ##     Modified ES packet.
+  result = packet
+
+  let payloadUnitStart : bool = ((packet[1] shr 6) and 0x01) == 1
+  if payloadUnitStart:
+    var payloadPos : int = 4
+
+    let existsAdaptation : bool = ((packet[3] shr 5) and 0x01) == 1
+    if existsAdaptation:
+      let adaptationLength : int = int(packet[payloadPos])
+      payloadPos += adaptationLength + 1
+
+    if (packet[payloadPos] == 0x00 and
+        packet[payloadPos + 1] == 0x00 and
+        packet[payloadPos + 2] == 0x01 and
+        (packet[payloadPos + 6] shr 6) == 0x02):
+      let
+        existsPTS : bool = (packet[payloadPos + 7] shr 7) == 1
+        existsDTS : bool = ((packet[payloadPos + 7] shr 6) and 0x01) == 1
+
+      payloadPos += 9
+
+      if existsPTS:
+        let timeId : int = timestamp.calcTimeId(pid, "PTS")
+        var
+          ptsSeq : seq[byte] = packet[payloadPos..(payloadPos + 4)]
+          pts : int = timestamp.byte2xts(ptsSeq)
+        timestamp.registerFirstTime(timeId, pts)
+        pts = timestamp.modifyTime(timeId, pts)
+        result[payloadPos..(payloadPos + 4)] = timestamp.xts2byte(pts, ptsSeq)
+        payloadPos += 5
+
+      if existsDTS:
+        let timeId : int = timestamp.calcTimeId(pid, "DTS")
+        var
+          dtsSeq : seq[byte] = packet[payloadPos..(payloadPos + 4)]
+          dts : int = timestamp.byte2xts(dtsSeq)
+        timestamp.registerFirstTime(timeId, dts)
+        dts = timestamp.modifyTime(timeId, dts)
+        result[payloadPos..(payloadPos + 4)] = timestamp.xts2byte(dts, dtsSeq)
+        payloadPos += 5
+
+
+proc modifyPacketTime(pid : int, packet : seq[byte]) : seq[byte] =
+  ## Modify packets so that 27MHz PCR or 90kHz PTS/DTS is based on 01:00:00.
+  ##
+  ## **Parameters:**
+  ## - ``pid`` : ``int``
+  ##     Packet identifier.
+  ## - ``packet`` : ``seq[byte]``
+  ##     Original PCR or PTS/DTS packet.
+  ##
+  ## **Returns:**
+  ## - ``result`` : ``seq[byte]``
+  ##     Modified PCR or PTS/DTS packet.
+  result = packet
+
+  if pidbuffer.isPCR(pid):
+    result = modifyPCR(pid, packet)
+  elif pidbuffer.isES(pid):
+    result = modifyES(pid, packet)
