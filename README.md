@@ -18,6 +18,9 @@ Options:
   Set output filename  
 - `-p`, `--progress`  
   Show progress
+- `-w`, `--wraparound`  
+  Avoid PCR/PTS/DTS wrap-around problem  
+  If you set this option, PCR/PTS/DTS will be modified based on 01:00:00.
 - `-v`, `--version`  
   Write tsreducer's version
 - `-h`, `--help`  

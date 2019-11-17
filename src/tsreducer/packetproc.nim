@@ -20,7 +20,9 @@ var reducedSections : Table[int, seq[byte]] = (
   newSeq[ReducedSectionTuple](0).toTable
 )
 
-var programId : int = 0x10000
+var
+  wraparoundFlag* : bool = false
+  programId : int = 0x10000
 
 
 proc createContinuityCounter(pid : int) : bool {.discardable.}
@@ -345,7 +347,8 @@ proc modifyPCR(pid : int, packet : seq[byte]) : seq[byte] =
       timestamp.registerFirstTime(timeId, pcr)
       pcr = timestamp.modifyTime(timeId, pcr)
       timestamp.registerRelPCR(pcr)
-      result[6..11] = timestamp.pcr2byte(pcr, pcrSeq)
+      if wraparoundFlag:
+        result[6..11] = timestamp.pcr2byte(pcr, pcrSeq)
 
 
 proc modifyES(pid : int, packet : seq[byte]) : seq[byte] =
@@ -388,7 +391,10 @@ proc modifyES(pid : int, packet : seq[byte]) : seq[byte] =
           pts : int = timestamp.byte2xts(ptsSeq)
         timestamp.registerFirstTime(timeId, pts)
         pts = timestamp.modifyTime(timeId, pts)
-        result[payloadPos..(payloadPos + 4)] = timestamp.xts2byte(pts, ptsSeq)
+
+        if wraparoundFlag:
+          result[payloadPos..(payloadPos + 4)] = timestamp.xts2byte(pts, ptsSeq)
+
         payloadPos += 5
 
       if existsDTS:
@@ -398,8 +404,9 @@ proc modifyES(pid : int, packet : seq[byte]) : seq[byte] =
           dts : int = timestamp.byte2xts(dtsSeq)
         timestamp.registerFirstTime(timeId, dts)
         dts = timestamp.modifyTime(timeId, dts)
-        result[payloadPos..(payloadPos + 4)] = timestamp.xts2byte(dts, dtsSeq)
-        payloadPos += 5
+
+        if wraparoundFlag:
+          result[payloadPos..(payloadPos + 4)] = timestamp.xts2byte(dts, dtsSeq)
 
 
 proc modifyPacketTime(pid : int, packet : seq[byte]) : seq[byte] =

@@ -18,6 +18,7 @@ Usage: tsreducer [options] inputfile [options]
 Options:
   -o:FILE, --output:FILE  set output filename
   -p, --progress          show progress
+  -w, --wraparound        avoid PCR/PTS/DTS wrap-around problem
   -v, --version           write tsreducer's version
   -h, --help              show this help
 """
@@ -38,6 +39,8 @@ proc parseOptions() : void =
         outputFileName = val
       of "progress", "p":
         packetio.progressFlag = true
+      of "wraparound", "w":
+        packetproc.wraparoundFlag = true
       of "version", "v":
         echo Version
         quit(0)
