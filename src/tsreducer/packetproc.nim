@@ -1,8 +1,11 @@
 import tables
 from algorithm import fill
 
+import ./aribdecode
+import ./epgevent
 import ./crc32
 import ./pidbuffer
+import ./timestamp
 
 
 const PACKET_SIZE : int = 188
@@ -17,12 +20,17 @@ var reducedSections : Table[int, seq[byte]] = (
   newSeq[ReducedSectionTuple](0).toTable
 )
 
+var programId : int = 0x10000
+
+
 proc createContinuityCounter(pid : int) : bool {.discardable.}
 proc incContinuityCounter(pid : int, n : int) : void
-proc reducePAT*(section : seq[byte]) : seq[byte]
-proc reducePMT*(section : seq[byte]) : seq[byte]
+proc reducePAT(section : seq[byte]) : seq[byte]
+proc reducePMT(section : seq[byte]) : seq[byte]
 proc reduceSection*(pid : int, section : seq[byte]) : seq[byte]
 proc makeTSPacket*(pid : int, section : seq[byte]) : seq[seq[byte]]
+proc parseEIT(section : seq[byte]) : void
+proc parseSI*(pid : int, section : seq[byte]) : void
 
 
 # --------------- Util --------------------------------------------------------
@@ -82,6 +90,7 @@ proc reducePAT(section : seq[byte]) : seq[byte] =
       pidbuffer.registerPIDBuffer(progPID)
     else:
       # PMT
+      programId = progNumId
       pidbuffer.registerPIDBuffer(progPID, "PMT")
       # Register ONLY first PMT
       break
@@ -171,7 +180,7 @@ proc reduceSection(pid : int, section : seq[byte]) : seq[byte] =
       # PAT
       result = reducePAT(section)
 
-    elif isPMT(pid):
+    elif pidbuffer.isPMT(pid):
       # PMT
       result = reducePMT(section)
 
@@ -234,3 +243,59 @@ proc makeTSPacket(pid : int, section : seq[byte]) : seq[seq[byte]] =
       packet &= section & paddingSeq
 
     result.add(packet)
+
+
+# --------------- SI ----------------------------------------------------------
+proc parseEIT(section : seq[byte]) : void =
+  ## Parse EIT sections.
+  ##
+  ## **Parameters:**
+  ## - ``section`` : ``seq[byte]``
+  ##     EIT section data.
+  let
+    tableId : int = int(section[0])
+    serviceId : int = (int(section[3]) shl 8) or int(section[4])
+
+  if tableId == 0x4E and programId == serviceId:
+    var pos : int = 14
+    while pos < section.len - 4:
+      let
+        eventId : int = (int(section[pos]) shl 8) or int(section[pos + 1])
+        startTimeSeq : seq[byte] = section[(pos + 2)..(pos + 6)]
+        durationSeq : seq[byte] = section[(pos + 7)..(pos + 9)]
+        startTimestamp : int = timestamp.mjd2timestamp(startTimeSeq)
+        duration : int = timestamp.duration2sec(durationSeq)
+        descLoopLength : int = (((int(section[pos + 10]) and 0x0F) shl 8) or
+                                int(section[pos + 11]))
+
+      var descPos : int = pos + 12
+      while descPos < pos + descLoopLength + 12:
+        let
+          descTag : int = int(section[descPos])
+          descLength : int = int(section[descPos + 1])
+          descField : seq[byte] = section[descPos..<(descPos + descLength + 2)]
+
+        if descTag == 0x4D:
+          let
+            eventNameLength : int = int(descField[5])
+            eventNameSeq : seq[byte] = descField[6..(5 + eventNameLength)]
+            eventName : string = aribdecode.aribdecode(eventNameSeq, false)
+            # textCharSeq : seq[byte] = descField[(7 + eventNameLength)..^1]
+            # textChar : string = aribdecode.aribdecode(textCharSeq, false)
+          epgevent.registerEvent(eventId, startTimestamp, duration, eventName)
+
+        descPos += descLength + 2
+
+      pos += descLoopLength + 12
+
+
+proc parseSI(pid : int, section : seq[byte]) : void =
+  ## Parse SI sections (mainly EIT).
+  ##
+  ## **Parameters:**
+  ## - ``pid`` : ``int``
+  ##     Packet identifier.
+  ## - ``section`` : ``seq[byte]``
+  ##     SI section data.
+  if pid == 0x0012:
+    parseEIT(section)
