@@ -18,6 +18,7 @@ Usage: tsreducer [options] inputfile [options]
 Options:
   -o:FILE, --output:FILE  set output filename
   -p, --progress          show progress
+  -w, --wraparound        avoid PCR/PTS/DTS wrap-around problem
   -v, --version           write tsreducer's version
   -h, --help              show this help
 """
@@ -38,6 +39,8 @@ proc parseOptions() : void =
         outputFileName = val
       of "progress", "p":
         packetio.progressFlag = true
+      of "wraparound", "w":
+        packetproc.wraparoundFlag = true
       of "version", "v":
         echo Version
         quit(0)
@@ -71,11 +74,18 @@ proc main() : void =
 
   try:
     for packet in packetio.readPacket(inputFile):
+      var packet : seq[byte] = packet
+
       let pid : int = ((int(packet[1]) and 0x1F) shl 8) or int(packet[2])
       if not pidbuffer.existsPIDBuffer(pid):
         continue
 
       if pidbuffer.isPCR(pid) or pidbuffer.isES(pid):
+        packet = packetproc.modifyPacketTime(pid, packet)
+
+        if pidbuffer.isPCR(pid):
+          discard
+
         packetio.writePacket(outputFile, packet=packet)
       else:
         var hasDualSection : bool = true
