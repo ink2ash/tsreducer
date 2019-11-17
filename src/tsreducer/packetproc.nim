@@ -35,7 +35,7 @@ proc createContinuityCounter(pid : int) : bool {.discardable.} =
   ##
   ## **Returns:** (discardable)
   ## - ``result`` : ``bool``
-  ##   - Whether created or not.
+  ##     Whether created or not.
   result = false
   if not (pid in pidContinuityCounters):
     pidContinuityCounters[pid] = 0
@@ -63,7 +63,7 @@ proc reducePAT(section : seq[byte]) : seq[byte] =
   ##
   ## **Returns:**
   ## - ``result`` : ``seq[byte]``
-  ##   - Reduced PAT section data.
+  ##     Reduced PAT section data.
   result = section[0..7]
 
   # Extract information of NIT/PMT
@@ -96,7 +96,7 @@ proc reducePMT(section : seq[byte]) : seq[byte] =
   ##
   ## **Returns:**
   ## - ``result`` : ``seq[byte]``
-  ##   - Reduced PMT section data.
+  ##     Reduced PMT section data.
   let pcrPID : int = (((int(section[8]) and 0x1F) shl 8) or
                       int(section[9]))
   pidbuffer.registerPIDBuffer(pcrPID, "PCR")
@@ -154,7 +154,7 @@ proc reduceSection(pid : int, section : seq[byte]) : seq[byte] =
   ##
   ## **Returns:**
   ## - ``result`` : ``seq[byte]``
-  ##   - Reduced section data.
+  ##     Reduced section data.
   createContinuityCounter(pid)
 
   let
@@ -195,7 +195,7 @@ proc makeTSPacket(pid : int, section : seq[byte]) : seq[seq[byte]] =
   ##
   ## **Returns:**
   ## - ``result`` : ``seq[byte]``
-  ##   - Sequence of TS packets.
+  ##     Sequence of TS packets.
   var section : seq[byte] = section
   let
     continuityCounter : int = pidContinuityCounters[pid]
