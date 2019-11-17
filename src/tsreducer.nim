@@ -75,28 +75,30 @@ proc main() : void =
       if not pidbuffer.existsPIDBuffer(pid):
         continue
 
-      if not (pid == 0x0000 or pidbuffer.isPMT(pid)):
+      if pidbuffer.isPCR(pid) or pidbuffer.isES(pid):
         packetio.writePacket(outputFile, packet=packet)
-        continue
+      else:
+        var hasDualSection : bool = true
+        while hasDualSection:
+          let isFull : bool = pidbuffer.storePIDBuffer(pid, packet,
+                                                      hasDualSection)
+          if not isFull:
+            continue
 
-      var hasDualSection : bool = true
+          let section : seq[byte] = pidbuffer.loadSection(pid)
 
-      while hasDualSection:
-        var isFull : bool = pidbuffer.storePIDBuffer(pid, packet,
-                                                     hasDualSection)
-        if not isFull:
-          continue
+          if pid == 0x0000 or isPMT(pid):
+            let
+              reducedSection : seq[byte] = packetproc.reduceSection(pid, section)
+              reducedPackets : seq[seq[byte]] = (
+                packetproc.makeTSPacket(pid, reducedSection)
+              )
+            for reducedPacket in reducedPackets:
+              packetio.writePacket(outputFile, packet=reducedPacket)
+          else:
+            packetproc.parseSI(pid, section)
+            packetio.writePacket(outputFile, packet=packet)
 
-        let section : seq[byte] = pidbuffer.loadSection(pid)
-
-        if pid == 0x0000 or pidbuffer.isPMT(pid):
-          let
-            reducedSection : seq[byte] = packetproc.reduceSection(pid, section)
-            reducedPackets : seq[seq[byte]] = (
-              packetproc.makeTSPacket(pid, reducedSection)
-            )
-          for reducedPacket in reducedPackets:
-            packetio.writePacket(outputFile, packet=reducedPacket)
 
   except:
     let
