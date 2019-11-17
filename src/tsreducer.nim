@@ -71,11 +71,18 @@ proc main() : void =
 
   try:
     for packet in packetio.readPacket(inputFile):
+      var packet : seq[byte] = packet
+
       let pid : int = ((int(packet[1]) and 0x1F) shl 8) or int(packet[2])
       if not pidbuffer.existsPIDBuffer(pid):
         continue
 
       if pidbuffer.isPCR(pid) or pidbuffer.isES(pid):
+        packet = packetproc.modifyPacketTime(pid, packet)
+
+        if pidbuffer.isPCR(pid):
+          discard
+
         packetio.writePacket(outputFile, packet=packet)
       else:
         var hasDualSection : bool = true
