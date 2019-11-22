@@ -105,7 +105,9 @@ proc manageFiles(pid : int, packet : seq[byte]) : void =
       if (marginPrevEventId != deltaPrevEventId and
           prevEventId != deltaPrevEventId):
         prevEventId = deltaPrevEventId
-        log(lvlDebug, fmt"prev -> curr {epgevent.getEventName(prevEventId)} -> {epgevent.getEventName(marginPrevEventId)}")
+        log(lvlDebug, fmt"prev -> curr ",
+                      fmt"{epgevent.getEventName(prevEventId)} ",
+                      fmt"-> {epgevent.getEventName(marginPrevEventId)}")
 
         fileWriter(flush=true)
 
@@ -113,8 +115,11 @@ proc manageFiles(pid : int, packet : seq[byte]) : void =
         isBothFileOpen = false
 
         if tmpFileNames[mainFileId][0..^2] == "unknown":
-          moveFile(tmpdirPath / tmpFileNames[mainFileId],
-                   dstdirPath / fmt"{epgevent.getEventName(prevEventId)}.m2ts")
+          moveFile(
+            tmpdirPath / tmpFileNames[mainFileId],
+            dstdirPath / fmt"{epgevent.getEventStartTime(prevEventId)}_" &
+                         fmt"{epgevent.getEventName(prevEventId)}.m2ts"
+          )
         else:
           moveFile(tmpdirPath / tmpFileNames[mainFileId],
                    dstdirPath / tmpFileNames[mainFileId])
@@ -125,12 +130,15 @@ proc manageFiles(pid : int, packet : seq[byte]) : void =
           nextEventId != deltaNextEventId):
         if marginNextEventId != 0x10000:
           nextEventId = deltaNextEventId
-          log(lvlDebug, fmt"curr -> next {epgevent.getEventName(marginNextEventId)} -> {epgevent.getEventName(nextEventId)}")
+          log(lvlDebug, fmt"curr -> next ",
+                        fmt"{epgevent.getEventName(marginNextEventId)} ",
+                        fmt"-> {epgevent.getEventName(nextEventId)}")
 
           fileWriter(flush=true)
 
           let subFileId : int = 1 - mainFileId
           tmpFileNames[subFileId] = (
+            fmt"{epgevent.getEventStartTime(nextEventId)}_" &
             fmt"{epgevent.getEventName(nextEventId)}.m2ts"
           )
           outputFiles[subFileId] = open(tmpdirPath / tmpFileNames[subFileId],
@@ -261,8 +269,11 @@ proc main() : void =
 
     close(outputFiles[mainFileId])
     if tmpFileNames[mainFileId][0..^2] == "unknown":
-      moveFile(tmpdirPath / tmpFileNames[mainFileId],
-               dstdirPath / fmt"{epgevent.getEventName(prevEventId)}.m2ts")
+      moveFile(
+        tmpdirPath / tmpFileNames[mainFileId],
+        dstdirPath / fmt"{epgevent.getEventStartTime(prevEventId)}_" &
+                     fmt"{epgevent.getEventName(prevEventId)}.m2ts"
+      )
     else:
       moveFile(tmpdirPath / tmpFileNames[mainFileId],
                dstdirPath / tmpFileNames[mainFileId])
