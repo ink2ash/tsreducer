@@ -191,7 +191,12 @@ iterator readPacket*(f : File) : seq[byte] =
     for i in 0..<(chunkSize div packetSize):
       let packet : seq[byte] = readChunk[(packetSize * i)..<(
                                           packetSize * (i + 1))]
-      yield packet
+
+      if packet[0] == 0x47:
+        yield packet
+      else:
+        log(lvlFatal, "Lost sync-byte.")
+        quit(1)
 
       inc(readTotalPacketNum)
 
