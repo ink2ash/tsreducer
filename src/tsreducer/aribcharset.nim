@@ -1,3 +1,10 @@
+## aribcharset
+##
+## Copyright (c) 2019 ink2ash
+##
+## This software is released under the MIT License.
+## http://opensource.org/licenses/mit-license.php
+
 const
   ALPHANUMERIC_TABLE* : array[94, string] = [
           "！", "”", "＃", "＄", "％", "＆", "’", "（", "）", "＊", "＋", "，", "－", "．", "／",
