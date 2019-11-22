@@ -1,3 +1,10 @@
+## packetio
+##
+## Copyright (c) 2019 ink2ash
+##
+## This software is released under the MIT License.
+## http://opensource.org/licenses/mit-license.php
+
 import logging
 from os import sleep
 from strformat import fmt
