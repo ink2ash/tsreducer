@@ -306,6 +306,8 @@ proc parseTDT(section : seq[byte]) : void =
     jst : int = timestamp.mjd2timestamp(jstSeq)
   timestamp.registerRelJST(jst)
 
+  epgevent.setUnknownStartTimestamp(jst)
+
 
 proc parseSI(pid : int, section : seq[byte]) : void =
   ## Parse SI sections (mainly EIT and TDT).
