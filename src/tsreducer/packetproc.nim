@@ -1,8 +1,18 @@
+## packetproc
+##
+## Copyright (c) 2019 ink2ash
+##
+## This software is released under the MIT License.
+## http://opensource.org/licenses/mit-license.php
+
 import tables
 from algorithm import fill
 
+import ./aribdecode
+import ./epgevent
 import ./crc32
 import ./pidbuffer
+import ./timestamp
 
 
 const PACKET_SIZE : int = 188
@@ -17,12 +27,23 @@ var reducedSections : Table[int, seq[byte]] = (
   newSeq[ReducedSectionTuple](0).toTable
 )
 
+var
+  wraparoundFlag* : bool = false
+  programId : int = 0x10000
+
+
 proc createContinuityCounter(pid : int) : bool {.discardable.}
 proc incContinuityCounter(pid : int, n : int) : void
-proc reducePAT*(section : seq[byte]) : seq[byte]
-proc reducePMT*(section : seq[byte]) : seq[byte]
+proc reducePAT(section : seq[byte]) : seq[byte]
+proc reducePMT(section : seq[byte]) : seq[byte]
 proc reduceSection*(pid : int, section : seq[byte]) : seq[byte]
 proc makeTSPacket*(pid : int, section : seq[byte]) : seq[seq[byte]]
+proc parseEIT(section : seq[byte]) : void
+proc parseTDT(section : seq[byte]) : void
+proc parseSI*(pid : int, section : seq[byte]) : void
+proc modifyPCR(pid : int, packet : seq[byte]) : seq[byte]
+proc modifyES(pid : int, packet : seq[byte]) : seq[byte]
+proc modifyPacketTime*(pid : int, packet : seq[byte]) : seq[byte]
 
 
 # --------------- Util --------------------------------------------------------
@@ -82,6 +103,7 @@ proc reducePAT(section : seq[byte]) : seq[byte] =
       pidbuffer.registerPIDBuffer(progPID)
     else:
       # PMT
+      programId = progNumId
       pidbuffer.registerPIDBuffer(progPID, "PMT")
       # Register ONLY first PMT
       break
@@ -171,7 +193,7 @@ proc reduceSection(pid : int, section : seq[byte]) : seq[byte] =
       # PAT
       result = reducePAT(section)
 
-    elif isPMT(pid):
+    elif pidbuffer.isPMT(pid):
       # PMT
       result = reducePMT(section)
 
@@ -234,3 +256,183 @@ proc makeTSPacket(pid : int, section : seq[byte]) : seq[seq[byte]] =
       packet &= section & paddingSeq
 
     result.add(packet)
+
+
+# --------------- SI ----------------------------------------------------------
+proc parseEIT(section : seq[byte]) : void =
+  ## Parse EIT sections.
+  ##
+  ## **Parameters:**
+  ## - ``section`` : ``seq[byte]``
+  ##     EIT section data.
+  let
+    tableId : int = int(section[0])
+    serviceId : int = (int(section[3]) shl 8) or int(section[4])
+
+  if tableId == 0x4E and programId == serviceId:
+    var pos : int = 14
+    while pos < section.len - 4:
+      let
+        eventId : int = (int(section[pos]) shl 8) or int(section[pos + 1])
+        startTimeSeq : seq[byte] = section[(pos + 2)..(pos + 6)]
+        durationSeq : seq[byte] = section[(pos + 7)..(pos + 9)]
+        startTimestamp : int = timestamp.mjd2timestamp(startTimeSeq)
+        duration : int = timestamp.duration2sec(durationSeq)
+        descLoopLength : int = (((int(section[pos + 10]) and 0x0F) shl 8) or
+                                int(section[pos + 11]))
+
+      var descPos : int = pos + 12
+      while descPos < pos + descLoopLength + 12:
+        let
+          descTag : int = int(section[descPos])
+          descLength : int = int(section[descPos + 1])
+          descField : seq[byte] = section[descPos..<(descPos + descLength + 2)]
+
+        if descTag == 0x4D:
+          let
+            eventNameLength : int = int(descField[5])
+            eventNameSeq : seq[byte] = descField[6..(5 + eventNameLength)]
+            eventName : string = aribdecode.aribdecode(eventNameSeq, false)
+            # textCharSeq : seq[byte] = descField[(7 + eventNameLength)..^1]
+            # textChar : string = aribdecode.aribdecode(textCharSeq, false)
+          epgevent.registerEvent(eventId, startTimestamp, duration, eventName)
+
+        descPos += descLength + 2
+
+      pos += descLoopLength + 12
+
+
+proc parseTDT(section : seq[byte]) : void =
+  ## Parse TDT sections.
+  ##
+  ## **Parameters:**
+  ## - ``section`` : ``seq[byte]``
+  ##     TDT section data.
+  let
+    jstSeq : seq[byte] = section[3..7]
+    jst : int = timestamp.mjd2timestamp(jstSeq)
+  timestamp.registerRelJST(jst)
+
+  epgevent.setUnknownStartTimestamp(jst)
+
+
+proc parseSI(pid : int, section : seq[byte]) : void =
+  ## Parse SI sections (mainly EIT and TDT).
+  ##
+  ## **Parameters:**
+  ## - ``pid`` : ``int``
+  ##     Packet identifier.
+  ## - ``section`` : ``seq[byte]``
+  ##     SI section data.
+  if pid == 0x0012:
+    parseEIT(section)
+  elif pid == 0x0014:
+    parseTDT(section)
+
+
+# --------------- Time --------------------------------------------------------
+proc modifyPCR(pid : int, packet : seq[byte]) : seq[byte] =
+  ## Modify PCR packets so that 27MHz PCR is based on 01:00:00.
+  ##
+  ## **Parameters:**
+  ## - ``pid`` : ``int``
+  ##     Packet identifier.
+  ## - ``packet`` : ``seq[byte]``
+  ##     Original PCR packet.
+  ##
+  ## **Returns:**
+  ## - ``result`` : ``seq[byte]``
+  ##     Modified PCR packet.
+  result = packet
+
+  let existsAdaptation : bool = ((packet[3] shr 5) and 0x01) == 1
+  if existsAdaptation:
+    let existsPCR : bool = ((packet[5] shr 4) and 0x01) == 1
+    if existsPCR:
+      let
+        pcrSeq : seq[byte] = packet[6..11]
+        timeId : int = timestamp.calcTimeId(pid, "PCR")
+      var pcr : int = timestamp.byte2pcr(pcrSeq)
+      timestamp.registerFirstTime(timeId, pcr)
+      pcr = timestamp.modifyTime(timeId, pcr)
+      timestamp.registerRelPCR(pcr)
+      if wraparoundFlag:
+        result[6..11] = timestamp.pcr2byte(pcr, pcrSeq)
+
+
+proc modifyES(pid : int, packet : seq[byte]) : seq[byte] =
+  ## Modify ES packets so that 90kHz PTS/DTS is based on 01:00:00.
+  ##
+  ## **Parameters:**
+  ## - ``pid`` : ``int``
+  ##     Packet identifier.
+  ## - ``packet`` : ``seq[byte]``
+  ##     Original ES packet.
+  ##
+  ## **Returns:**
+  ## - ``result`` : ``seq[byte]``
+  ##     Modified ES packet.
+  result = packet
+
+  let payloadUnitStart : bool = ((packet[1] shr 6) and 0x01) == 1
+  if payloadUnitStart:
+    var payloadPos : int = 4
+
+    let existsAdaptation : bool = ((packet[3] shr 5) and 0x01) == 1
+    if existsAdaptation:
+      let adaptationLength : int = int(packet[payloadPos])
+      payloadPos += adaptationLength + 1
+
+    if (packet[payloadPos] == 0x00 and
+        packet[payloadPos + 1] == 0x00 and
+        packet[payloadPos + 2] == 0x01 and
+        (packet[payloadPos + 6] shr 6) == 0x02):
+      let
+        existsPTS : bool = (packet[payloadPos + 7] shr 7) == 1
+        existsDTS : bool = ((packet[payloadPos + 7] shr 6) and 0x01) == 1
+
+      payloadPos += 9
+
+      if existsPTS:
+        let timeId : int = timestamp.calcTimeId(pid, "PTS")
+        var
+          ptsSeq : seq[byte] = packet[payloadPos..(payloadPos + 4)]
+          pts : int = timestamp.byte2xts(ptsSeq)
+        timestamp.registerFirstTime(timeId, pts)
+        pts = timestamp.modifyTime(timeId, pts)
+
+        if wraparoundFlag:
+          result[payloadPos..(payloadPos + 4)] = timestamp.xts2byte(pts, ptsSeq)
+
+        payloadPos += 5
+
+      if existsDTS:
+        let timeId : int = timestamp.calcTimeId(pid, "DTS")
+        var
+          dtsSeq : seq[byte] = packet[payloadPos..(payloadPos + 4)]
+          dts : int = timestamp.byte2xts(dtsSeq)
+        timestamp.registerFirstTime(timeId, dts)
+        dts = timestamp.modifyTime(timeId, dts)
+
+        if wraparoundFlag:
+          result[payloadPos..(payloadPos + 4)] = timestamp.xts2byte(dts, dtsSeq)
+
+
+proc modifyPacketTime(pid : int, packet : seq[byte]) : seq[byte] =
+  ## Modify packets so that 27MHz PCR or 90kHz PTS/DTS is based on 01:00:00.
+  ##
+  ## **Parameters:**
+  ## - ``pid`` : ``int``
+  ##     Packet identifier.
+  ## - ``packet`` : ``seq[byte]``
+  ##     Original PCR or PTS/DTS packet.
+  ##
+  ## **Returns:**
+  ## - ``result`` : ``seq[byte]``
+  ##     Modified PCR or PTS/DTS packet.
+  result = packet
+
+  if pidbuffer.isPCR(pid):
+    result = modifyPCR(pid, packet)
+  elif pidbuffer.isES(pid):
+    result = modifyES(pid, packet)
