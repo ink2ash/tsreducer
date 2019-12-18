@@ -21,7 +21,7 @@ import ./tsreducer/timestamp
 
 
 const
-  Version : string = "tsreducer 1.0.0"
+  Version : string = "tsreducer 1.1.0"
   Usage : string = """
 tsreducer - Reduce MPEG-2 TS file size
   (c) 2019 ink2ash
@@ -251,7 +251,7 @@ proc main() : void =
 
           let section : seq[byte] = pidbuffer.loadSection(pid)
 
-          if pid == 0x0000 or isPMT(pid):
+          if pid == 0x0000 or isPMT(pid) or pid == 0x0011:
             let
               reducedSection : seq[byte] = packetproc.reduceSection(pid,
                                                                     section)
