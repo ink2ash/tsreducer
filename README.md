@@ -18,8 +18,8 @@ Options:
   Set destination directory path (default: ".")  
 - `--tmpdir:DIR`  
   Set temporary directory path (default: "/tmp")  
-- `-o:FILE`, `--output:FILE`
-  Set output filename (Please don't contain "/")
+- `-o:FILE`, `--output:FILE`  
+  Set output filename (Please don't contain "/")  
   If you set `-s` or `--split` option, this option will be ignored.
 - `-s`, `--split`  
   Split by programs  
