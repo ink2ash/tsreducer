@@ -21,7 +21,7 @@ import ./tsreducer/timestamp
 
 
 const
-  Version : string = "tsreducer 1.0.0"
+  Version : string = "tsreducer 1.1.0"
   Usage : string = """
 tsreducer - Reduce MPEG-2 TS file size
   (c) 2019 ink2ash
