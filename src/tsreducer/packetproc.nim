@@ -161,7 +161,7 @@ proc reducePMT(section : seq[byte]) : seq[byte] =
     if (streamId == 0x02 or streamId == 0x1B or
         streamId == 0x0F or streamId == 0x06):
       pidbuffer.registerPIDBuffer(esPID, "ES")
-      result &= section[pos..(pos+esInfoLength + 4)]
+      result &= section[pos..(pos + esInfoLength + 4)]
 
     pos += esInfoLength + 5
 
