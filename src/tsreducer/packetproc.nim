@@ -36,6 +36,7 @@ proc createContinuityCounter(pid : int) : bool {.discardable.}
 proc incContinuityCounter(pid : int, n : int) : void
 proc reducePAT(section : seq[byte]) : seq[byte]
 proc reducePMT(section : seq[byte]) : seq[byte]
+proc reduceSDT(section : seq[byte]) : seq[byte]
 proc reduceSection*(pid : int, section : seq[byte]) : seq[byte]
 proc makeTSPacket*(pid : int, section : seq[byte]) : seq[seq[byte]]
 proc parseEIT(section : seq[byte]) : void
@@ -165,8 +166,43 @@ proc reducePMT(section : seq[byte]) : seq[byte] =
     pos += esInfoLength + 5
 
 
+proc reduceSDT(section : seq[byte]) : seq[byte] =
+  ## Reduce SDT sections.
+  ##
+  ## **Parameters:**
+  ## - ``section`` : ``seq[byte]``
+  ##     Original SDT section data.
+  ##
+  ## **Returns:**
+  ## - ``result`` : ``seq[byte]``
+  ##     Reduced SDT section data.
+  let tableId : int = int(section[0])
+
+  if tableId == 0x42:
+    if programId == 0x10000:
+      result = newSeq[byte](0)
+    else:
+      var pos : int = 11
+      result = section[0..<pos]
+
+      # Service
+      while pos < section.len - 4:
+        let
+          serviceId : int = (int(section[pos]) shl 8) or int(section[pos + 1])
+          descLoopLength : int = (((int(section[pos + 3]) and 0x0F) shl 8) or
+                                  int(section[pos + 4]))
+
+        if programId == serviceId:
+          result &= section[pos..(pos + descLoopLength + 4)]
+
+        pos += descLoopLength + 5
+
+  else:
+    result = section[0..^5]
+
+
 proc reduceSection(pid : int, section : seq[byte]) : seq[byte] =
-  ## Reduce sections (mainly PAT and PMT).
+  ## Reduce sections (mainly PAT, PMT, and SDT).
   ##
   ## **Parameters:**
   ## - ``pid`` : ``int``
@@ -197,13 +233,18 @@ proc reduceSection(pid : int, section : seq[byte]) : seq[byte] =
       # PMT
       result = reducePMT(section)
 
-    result[1] = (result[1] and 0xF0) or byte((result.len + 1) shr 8)
-    result[2] = byte((result.len + 1) and 0xFF)
+    elif pid == 0x0011:
+      # SDT
+      result = reduceSDT(section)
 
-    let reducedCRC : seq[byte] = crc32.crc32(result)
-    result &= reducedCRC
+    if result.len > 0:
+      result[1] = (result[1] and 0xF0) or byte((result.len + 1) shr 8)
+      result[2] = byte((result.len + 1) and 0xFF)
 
-    reducedSections[pidCRC] = result
+      let reducedCRC : seq[byte] = crc32.crc32(result)
+      result &= reducedCRC
+
+      reducedSections[pidCRC] = result
 
 
 proc makeTSPacket(pid : int, section : seq[byte]) : seq[seq[byte]] =
@@ -218,6 +259,9 @@ proc makeTSPacket(pid : int, section : seq[byte]) : seq[seq[byte]] =
   ## **Returns:**
   ## - ``result`` : ``seq[byte]``
   ##     Sequence of TS packets.
+  if section.len == 0:
+    return newSeq[seq[byte]](0)
+
   var section : seq[byte] = section
   let
     continuityCounter : int = pidContinuityCounters[pid]
