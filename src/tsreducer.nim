@@ -251,7 +251,7 @@ proc main() : void =
 
           let section : seq[byte] = pidbuffer.loadSection(pid)
 
-          if pid == 0x0000 or isPMT(pid):
+          if pid == 0x0000 or isPMT(pid) or pid == 0x0011:
             let
               reducedSection : seq[byte] = packetproc.reduceSection(pid,
                                                                     section)
