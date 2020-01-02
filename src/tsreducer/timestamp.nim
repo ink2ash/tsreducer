@@ -51,7 +51,7 @@ proc mjd2timestamp(timeData : seq[byte]) : int =
     yy : int = int((float(mjd) - 15078.2) / 365.25)
     mm : int = int((float(mjd) - 14956.1 - float(int(float(yy) * 365.25))) /
                    30.6001)
-    k : int = if mm == 14 and mm == 15: 1 else: 0
+    k : int = if mm == 14 or mm == 15: 1 else: 0
     year : int = 1900 + yy + k
     month : int = mm - 1 - k * 12
     day : int = (mjd - 14956 - int(float(yy) * 365.25) -
