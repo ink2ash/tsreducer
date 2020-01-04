@@ -21,7 +21,7 @@ import ./tsreducer/timestamp
 
 
 const
-  Version : string = "tsreducer 1.1.1"
+  Version : string = "tsreducer 1.1.2"
   Usage : string = """
 tsreducer - Reduce MPEG-2 TS file size
   (c) 2019 ink2ash
@@ -245,7 +245,7 @@ proc main() : void =
         var hasDualSection : bool = true
         while hasDualSection:
           let isFull : bool = pidbuffer.storePIDBuffer(pid, packet,
-                                                      hasDualSection)
+                                                       hasDualSection)
           if not isFull:
             continue
 

@@ -887,7 +887,7 @@ function main() {
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
 <dd>
 
-<p>Reduce sections (mainly PAT and PMT).</p>
+<p>Reduce sections (mainly PAT, PMT, and SDT).</p>
 <p><strong>Parameters:</strong></p>
 <ul class="simple"><li><dl class="docutils"><dt><tt class="docutils literal"><span class="pre">pid</span></tt> : <tt class="docutils literal"><span class="pre">int</span></tt></dt>
 <dd>Packet identifier.</dd>
@@ -952,8 +952,8 @@ function main() {
 
 </dd>
 <a id="modifyPacketTime,int,seq[T][byte]"></a>
-<dt><pre><span class="Keyword">proc</span> <a href="#modifyPacketTime%2Cint%2Cseq%5BT%5D%5Bbyte%5D"><span class="Identifier">modifyPacketTime</span></a><span class="Other">(</span><span class="Identifier">pid</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">packet</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">KeyError</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#modifyPacketTime%2Cint%2Cseq%5BT%5D%5Bbyte%5D"><span class="Identifier">modifyPacketTime</span></a><span class="Other">(</span><span class="Identifier">pid</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">packet</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> <span><span class="Other">{</span><span class="Other pragmadots">...</span><span class="Other">}</span></span><span class="pragmawrap"><span class="Other">{.</span><span class="pragma">
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">KeyError</span><span class="Other">,</span> <span class="Identifier">Exception</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span><span class="Other">.}</span></span></pre></dt>
 <dd>
 
 <p>Modify packets so that 27MHz PCR or 90kHz PTS/DTS is based on 01:00:00.</p>
@@ -986,7 +986,7 @@ function main() {
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small>Made with Nim. Generated: 2019-11-22 16:03:22 UTC</small>
+        <small>Made with Nim. Generated: 2020-01-04 13:46:51 UTC</small>
       </div>
     </div>
   </div>
