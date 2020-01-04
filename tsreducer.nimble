@@ -1,6 +1,6 @@
 # Package
 
-version       = "1.1.1"
+version       = "1.1.2"
 author        = "ink2ash"
 description   = "Reduce MPEG-2 TS file size"
 license       = "MIT"
