@@ -206,6 +206,10 @@ proc storePIDBuffer(pid : int, packet : seq[byte],
           pidBufs[pid].pos..<(pidBufs[pid].pos + pointerField)
         ] = packet[payloadPos..<(payloadPos + pointerField)]
         pidBufs[pid].pos += pointerField
+
+        if pidBufs[pid].size != pidBufs[pid].pos:
+          pidBufs[pid].pos = 0
+
         hasDualSection = true
         return not pidBufs[pid].existsDrop
 
