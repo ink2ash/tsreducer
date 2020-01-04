@@ -245,7 +245,7 @@ proc main() : void =
         var hasDualSection : bool = true
         while hasDualSection:
           let isFull : bool = pidbuffer.storePIDBuffer(pid, packet,
-                                                      hasDualSection)
+                                                       hasDualSection)
           if not isFull:
             continue
 
