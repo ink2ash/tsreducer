@@ -5,6 +5,7 @@
 ## This software is released under the MIT License.
 ## http://opensource.org/licenses/mit-license.php
 
+import logging
 import tables
 from algorithm import fill
 
@@ -418,6 +419,9 @@ proc modifyES(pid : int, packet : seq[byte]) : seq[byte] =
   ##     Modified ES packet.
   result = packet
 
+  if not wraparoundFlag:
+    return result
+
   let payloadUnitStart : bool = ((packet[1] shr 6) and 0x01) == 1
   if payloadUnitStart:
     var payloadPos : int = 4
@@ -426,6 +430,10 @@ proc modifyES(pid : int, packet : seq[byte]) : seq[byte] =
     if existsAdaptation:
       let adaptationLength : int = int(packet[payloadPos])
       payloadPos += adaptationLength + 1
+
+    if payloadPos >= 188:
+      log(lvlFatal, "`-w` and `--wraparound` option cannot applicable.")
+      quit(1)
 
     if (packet[payloadPos] == 0x00 and
         packet[payloadPos + 1] == 0x00 and
@@ -445,8 +453,7 @@ proc modifyES(pid : int, packet : seq[byte]) : seq[byte] =
         timestamp.registerFirstTime(timeId, pts)
         pts = timestamp.modifyTime(timeId, pts)
 
-        if wraparoundFlag:
-          result[payloadPos..(payloadPos + 4)] = timestamp.xts2byte(pts, ptsSeq)
+        result[payloadPos..(payloadPos + 4)] = timestamp.xts2byte(pts, ptsSeq)
 
         payloadPos += 5
 
@@ -458,8 +465,7 @@ proc modifyES(pid : int, packet : seq[byte]) : seq[byte] =
         timestamp.registerFirstTime(timeId, dts)
         dts = timestamp.modifyTime(timeId, dts)
 
-        if wraparoundFlag:
-          result[payloadPos..(payloadPos + 4)] = timestamp.xts2byte(dts, dtsSeq)
+        result[payloadPos..(payloadPos + 4)] = timestamp.xts2byte(dts, dtsSeq)
 
 
 proc modifyPacketTime(pid : int, packet : seq[byte]) : seq[byte] =
