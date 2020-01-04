@@ -259,10 +259,16 @@ proc modifyTime(timeId : int, time : int) : int =
   of 0:
     # 1[hour] * 60[min] * 60[sec] * 27_000_000[Hz]
     result = time - getFirstTime(timeId) + int(97_200_000_000)
+    if result < 0:
+      # 0x1_FFFF_FFFF * 300[Hz] = 2_576_980_377_300[Hz]
+      result += int(2_576_980_377_300)
   # PTS/DTS
   of 1, 2:
     # 1[hour] * 60[min] * 60[sec] * 90_000[Hz]
     result = time - getFirstTime(timeId) + int(324_000_000)
+    if result < 0:
+      # 0x1_FFFF_FFFF[Hz] = 8_589_934_591[Hz]
+      result += int(8_589_934_591)
   else:
     result = time
 
